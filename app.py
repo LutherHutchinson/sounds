@@ -478,8 +478,9 @@ if page == "📊 Анализатор сигналов":
 
             # Compute autocorrelation via FFT for full wave length (O(N log N))
             ys_ac = wave_obj.ys
-            # Serial correlation (lag-1)
-            serial_corr_val = float(np.corrcoef(ys_ac[:-1], ys_ac[1:])[0, 1])
+            # Serial correlation — configurable lag
+            lag_samples_single = max(1, min(int(round(max_lag_ms_single / 1000.0 * wave_obj.framerate)), len(ys_ac) - 1))
+            serial_corr_val = float(np.corrcoef(ys_ac[:-lag_samples_single], ys_ac[lag_samples_single:])[0, 1])
             # FFT-based autocorrelation (full length)
             n_fft = len(ys_ac)
             fft_ac = np.fft.rfft(ys_ac, n=2 * n_fft)
@@ -491,7 +492,7 @@ if page == "📊 Анализатор сигналов":
             st.markdown(
                 f"""
                 <div class="metric-card" style="text-align:center; margin-bottom:1rem;">
-                    <div class="metric-title">Последовательная корреляция (serial_corr, lag=1)</div>
+                    <div class="metric-title">Последовательная корреляция (serial_corr, lag={lag_samples_single} отсчётов = {max_lag_ms_single} мс)</div>
                     <div class="metric-value" style="font-size:1.8rem;">{serial_corr_val:.4f}</div>
                     <div class="metric-desc">{"Сильная положительная" if serial_corr_val > 0.7 else "Сильная отрицательная" if serial_corr_val < -0.7 else "Слабая / умеренная"} последовательная зависимость</div>
                 </div>
@@ -801,9 +802,10 @@ elif page == "🔄 Сравнение звуков":
             # Pearson correlation coefficient
             pearson_r = float(np.corrcoef(ys_a_aligned, ys_b_aligned)[0, 1])
 
-            # Serial correlations (lag-1) for each signal
-            sc_val_a = float(np.corrcoef(ys_a_aligned[:-1], ys_a_aligned[1:])[0, 1])
-            sc_val_b = float(np.corrcoef(ys_b_aligned[:-1], ys_b_aligned[1:])[0, 1])
+            # Serial correlations — configurable lag
+            lag_samples_comp = max(1, min(int(round(max_lag_ms_comp / 1000.0 * aligned_a.framerate)), n_aligned - 1))
+            sc_val_a = float(np.corrcoef(ys_a_aligned[:-lag_samples_comp], ys_a_aligned[lag_samples_comp:])[0, 1])
+            sc_val_b = float(np.corrcoef(ys_b_aligned[:-lag_samples_comp], ys_b_aligned[lag_samples_comp:])[0, 1])
 
             # Metrics row
             mc1, mc2, mc3 = st.columns(3)
@@ -820,7 +822,7 @@ elif page == "🔄 Сравнение звуков":
                 st.markdown(
                     f"""
                     <div class="metric-card" style="text-align:center;">
-                        <div class="metric-title">serial_corr Звука А (lag=1)</div>
+                        <div class="metric-title">serial_corr Звука А (lag={lag_samples_comp} отсч. = {max_lag_ms_comp} мс)</div>
                         <div class="metric-value" style="font-size:1.8rem;">{sc_val_a:.4f}</div>
                         <div class="metric-desc">{"Высокая" if abs(sc_val_a) > 0.7 else "Умеренная" if abs(sc_val_a) > 0.3 else "Слабая"} последовательная зависимость</div>
                     </div>
@@ -829,7 +831,7 @@ elif page == "🔄 Сравнение звуков":
                 st.markdown(
                     f"""
                     <div class="metric-card" style="text-align:center;">
-                        <div class="metric-title">serial_corr Звука Б (lag=1)</div>
+                        <div class="metric-title">serial_corr Звука Б (lag={lag_samples_comp} отсч. = {max_lag_ms_comp} мс)</div>
                         <div class="metric-value" style="font-size:1.8rem;">{sc_val_b:.4f}</div>
                         <div class="metric-desc">{"Высокая" if abs(sc_val_b) > 0.7 else "Умеренная" if abs(sc_val_b) > 0.3 else "Слабая"} последовательная зависимость</div>
                     </div>
