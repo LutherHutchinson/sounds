@@ -385,6 +385,16 @@ if page == "📊 Анализатор сигналов":
             st.sidebar.info("Пожалуйста, загрузите WAV файл.")
             wave_obj = None
 
+    # LAG settings
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⏱ Настройка лага")
+    max_lag_ms_single = st.sidebar.slider(
+        "Макс. лаг для графика автокорреляции (мс):",
+        min_value=1, max_value=500, value=20, step=1,
+        key="single_lag_ms",
+        help="Ограничивает диапазон лага на графике автокорреляции"
+    )
+
     # Main Area
     if wave_obj is not None:
         with st.container(border=True):
@@ -499,13 +509,14 @@ if page == "📊 Анализатор сигналов":
                 )
                 st.plotly_chart(fig7, use_container_width=True)
 
-            # 8. Autocorrelation short-lag zoom (first 20 ms)
+            # 8. Autocorrelation — configurable lag zoom
             with row4_col2:
-                zoom_ac_sec = min(0.02, lags_ac[-1])
+                zoom_ac_sec = min(max_lag_ms_single / 1000.0, lags_ac[-1])
                 zoom_ac_idx = np.searchsorted(lags_ac, zoom_ac_sec)
+                zoom_ac_idx = max(zoom_ac_idx, 1)
                 fig8 = make_plotly_line(
                     lags_ac[:zoom_ac_idx], autocorr_full[:zoom_ac_idx],
-                    'Автокорреляция (первые 20 мс)',
+                    f'Автокорреляция (первые {max_lag_ms_single} мс)',
                     'Лаг (с)', 'Нормализованная корреляция',
                     line_color='#a21caf'
                 )
@@ -578,7 +589,23 @@ elif page == "🔄 Сравнение звуков":
                 st.info("Загрузите файл для Звука Б")
                 wave_b = None
                 name_b = "Звук Б (Ожидание)"
-                
+
+    # LAG settings
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⏱ Настройка лага")
+    max_lag_ms_comp = st.sidebar.slider(
+        "Макс. лаг для графиков корреляции (мс):",
+        min_value=1, max_value=1000, value=50, step=1,
+        key="comp_lag_ms",
+        help="Ограничивает диапазон лага на графиках взаимной и автокорреляций"
+    )
+    show_full_crosscorr = st.sidebar.checkbox(
+        "Показать полную взаимную корреляцию",
+        value=False,
+        key="comp_show_full_cc",
+        help="Если включено — отображает взаимную корреляцию на всей длине записи"
+    )
+
     # Main Area
     if wave_a is not None and wave_b is not None:
         # Crop both waves to 5 seconds if they exceed it
@@ -810,7 +837,7 @@ elif page == "🔄 Сравнение звуков":
 
             col_corr1, col_corr2 = st.columns(2)
 
-            # Cross-correlation via FFT — full wave length
+            # Cross-correlation via FFT — configurable lag
             with col_corr1:
                 n_fft_cc = 2 * n_aligned
                 fft_a = np.fft.rfft(ys_a_aligned, n=n_fft_cc)
@@ -820,9 +847,19 @@ elif page == "🔄 Сравнение звуков":
                 if norm_cc > 0:
                     cross_corr_full = cross_corr_full / norm_cc
                 lags_cc = np.arange(n_aligned) / aligned_a.framerate
+
+                if show_full_crosscorr:
+                    cc_x, cc_y = lags_cc, cross_corr_full
+                    cc_title = f'Взаимная корреляция (полная длина, {n_aligned} отсчётов)'
+                else:
+                    zoom_cc_sec = min(max_lag_ms_comp / 1000.0, lags_cc[-1])
+                    zoom_cc_idx = max(np.searchsorted(lags_cc, zoom_cc_sec), 1)
+                    cc_x, cc_y = lags_cc[:zoom_cc_idx], cross_corr_full[:zoom_cc_idx]
+                    cc_title = f'Взаимная корреляция (первые {max_lag_ms_comp} мс)'
+
                 fig_cc = make_plotly_line(
-                    lags_cc, cross_corr_full,
-                    f'Взаимная корреляция (полная длина, {n_aligned} отсчётов)',
+                    cc_x, cc_y,
+                    cc_title,
                     'Лаг (с)', 'Нормализованная корреляция',
                     line_color='#7c3aed'
                 )
@@ -890,9 +927,13 @@ elif page == "🔄 Сравнение звуков":
                     ac_xy = np.fft.irfft(fft_xy * np.conj(fft_xy))[:n_xy]
                     ac_xy = ac_xy / ac_xy[0]  # Normalize
                     lags_xy = np.arange(n_xy) / wave_xy.framerate
+
+                    zoom_ac_comp_sec = min(max_lag_ms_comp / 1000.0, lags_xy[-1])
+                    zoom_ac_comp_idx = max(np.searchsorted(lags_xy, zoom_ac_comp_sec), 1)
+
                     fig_ac_xy = make_plotly_line(
-                        lags_xy, ac_xy,
-                        f'Автокорреляция ({name_xy}, {n_xy} отсчётов)',
+                        lags_xy[:zoom_ac_comp_idx], ac_xy[:zoom_ac_comp_idx],
+                        f'Автокорреляция ({name_xy}, первые {max_lag_ms_comp} мс)',
                         'Лаг (с)', 'Нормализованная корреляция',
                         line_color=color_xy
                     )
